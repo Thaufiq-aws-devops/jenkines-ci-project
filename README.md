@@ -1,50 +1,63 @@
-JENKINES-CI-PROJECT
------------------------------------------------------------------
+# vprofile-app Continuous Integration Pipeline
 
-vprofile-app Continuous Integration Pipeline
-The vprofile-app is a Java-based application compatible with Java 17 and 21. This repository contains the source code and the Jenkins pipeline configuration used to automate the continuous integration (CI) lifecycle.
+The **vprofile-app** is a Java-based application compatible with Java 17 and 21. This repository contains the source code and the Jenkins pipeline configuration used to automate the continuous integration (CI) lifecycle.
 
 This documentation focuses solely on the automated CI process managed by Jenkins, detailing how code commits are automatically triggered, built, tested, analyzed for quality, and published as deployable artifacts.
 
-CI Pipeline Overview
-The Continuous Integration pipeline is orchestrated by Jenkins and designed to ensure code quality and build integrity with every change. The pipeline performs the following key actions:
+## CI Pipeline Overview
 
-Automated compilation and building of the Java application with Maven.
+The Continuous Integration pipeline is orchestrated by Jenkins and is designed to ensure code quality and build integrity with every change.
 
-Execution of unit tests.
+**Jenkins Job Dashboard:**
+![Jenkins Job Dashboard](Images/jenkins-server.png)
 
-Static code analysis using Checkstyle.
+**Current Pipeline Status Visualization:**
+![Jenkins Stage View Successful Run](Images/jenkines-job-pass.png)
 
-Comprehensive code quality and security scanning via SonarQube.
+The pipeline performs the following key actions:
 
-Enforcement of quality gates before proceeding.
+* Automated compilation and building of the Java application with Maven.
+* Execution of unit tests.
+* Static code analysis using Checkstyle.
+* Comprehensive code quality and security scanning via SonarQube.
+* Enforcement of quality gates before proceeding.
+* Publishing the final versioned artifact (WAR file) to a Sonatype Nexus repository.
+* Sending real-time build status notifications to a Slack channel.
 
-Publishing the final versioned artifact (WAR file) to a Sonatype Nexus repository.
+## Infrastructure & Technology Stack
 
-Sending real-time build status notifications to a Slack channel.
+The CI/CD infrastructure is hosted on AWS EC2 instances, connecting various DevOps tools.
 
-Category,Tool,Description
-Cloud Provider,AWS EC2,"Hosts the Jenkins, SonarQube, and Nexus servers."
-CI Orchestration,Jenkins,Manages the entire automated pipeline flow.
-Build Tool,Apache Maven 3.9,"Handles project building, dependency management, and testing."
-Language Runtime,Java 17,Jenkins uses JDK 17 for build tasks.
-Code Quality,SonarQube,"Performs static analysis to detect bugs, vulnerabilities, and code smells."
-Artifact Repo,Sonatype Nexus,Stores dependencies and hosts the final deployable build artifacts.
-Notifications,Slack,Provides instant alerts on pipeline success or failure.
+![AWS EC2 Infrastructure](Images/AWS-EC2-Instances.png)
 
-Pipeline Trigger & Automation
+| Category             | Tool             | Description                                                                |
+| :------------------- | :--------------- | :------------------------------------------------------------------------- |
+| **Cloud Provider**   | AWS EC2          | Hosts the Jenkins, SonarQube, and Nexus servers.                           |
+| **CI Orchestration** | Jenkins          | Manages the entire automated pipeline flow.                                |
+| **Build Tool**       | Apache Maven 3.9 | Handles project building, dependency management, and testing.              |
+| **Language Runtime** | Java 17          | Jenkins uses JDK 17 for build tasks.                                       |
+| **Code Quality**     | SonarQube        | Performs static analysis to detect bugs, vulnerabilities, and code smells. |
+| **Artifact Repo**    | Sonatype Nexus   | Stores dependencies and hosts the final deployable build artifacts.        |
+| **Notifications**    | Slack            | Provides instant alerts on pipeline success or failure.                    |
+
+**Nexus Repository Configuration:**
+![Sonatype Nexus Repositories](Images/Neus-server-repos.png)
+
+## Pipeline Trigger & Automation
+
 This pipeline adheres to Continuous Integration principles by automating builds on every significant code change.
 
-Trigger Mechanism: Source Code Management (SCM) Webhook.
+* **Trigger Mechanism:** Source Code Management (SCM) Webhook.
+* **Trigger Events:** A `push` or `commit` event to the repository.
+* **Target Branch:** The pipeline is configured to trigger automatically only on changes made to the **`main`** branch.
 
-Trigger Events: A push or commit event to the repository.
+Whenever code is merged or pushed to the `main` branch, a webhook notifies Jenkins, which immediately initiates the pipeline execution process defined below.
 
-Target Branch: The pipeline is configured to trigger automatically only on changes made to the main branch.
+## Pipeline Architecture Diagram
 
-Whenever code is merged or pushed to the main branch, a webhook notifies Jenkins, which immediately initiates the pipeline execution process defined below.
+The following diagram illustrates the flow of execution defined in the `Jenkinsfile`:
 
-Pipeline Architecture Diagram
-The following diagram illustrates the flow of execution defined in the Jenkinsfile:
+```mermaid
 graph TD
     A[Developer Push to 'main'] -->|Webhook Trigger| B(Jenkins Pipeline Start);
     B --> C{Stage: Build};
@@ -63,58 +76,81 @@ graph TD
     N --> O[Post-Action: Notify];
     Q --> O;
     O -->|Slack Plugin| P[Send Slack Notification];
+```
 
-   Detailed Pipeline Stages
+## Detailed Pipeline Stages
+
 The Jenkinsfile defines a declarative pipeline with the following distinct stages:
 
-1. Build
-Tool: Maven
+### 1. Build
 
-Command: mvn -s settings.xml -DskipTests install
+**Tool:** Maven
 
-Description: Compiles the source code, downloads necessary dependencies from the Nexus group repository, and packages the application into a .war file. It skips tests in this stage to speed up the build.
+**Command:** `mvn -s settings.xml -DskipTests install`
 
-Post-Action: On success, the generated WAR file (**/target/*.war) is archived as a Jenkins artifact for later use.
+**Description:** Compiles the source code, downloads dependencies from the Nexus group repository, and packages the application into a `.war` file. Tests are skipped to speed up the build.
 
-2. Test
-Tool: Maven
+**Post-Action:** Generated WAR file (`/target/*.war`) is archived as a Jenkins artifact.
 
-Command: mvn -s settings.xml test
+### 2. Test
 
-Description: Runs the unit tests defined in the project to ensure basic code functionality.
+**Tool:** Maven
 
-3. Checkstyle
-Tool: Maven Checkstyle Plugin
+**Command:** `mvn -s settings.xml test`
 
-Command: mvn -s settings.xml checkstyle:checkstyle
+**Description:** Runs all unit tests.
 
-Description: Performs a static analysis of the code against predefined coding standards and generates a report.
+### 3. Checkstyle
 
-4. SonarQube Analysis
-Tool: SonarScanner
+**Tool:** Maven Checkstyle Plugin
 
-Description: The pipeline connects to the defined SonarQube server environment. The sonar-scanner tool is executed to analyze source code, test coverage reports (JaCoCo), and checkstyle reports. The results are published to the SonarQube dashboard under the project key vprofile.
+**Command:** `mvn -s settings.xml checkstyle:checkstyle`
 
-5. Quality Gate
-Description: This stage pauses the pipeline for up to 1 minute, waiting for a callback webhook from the SonarQube server. The pipeline will only proceed if the analysis meets the defined "Quality Gate" criteria (e.g., passing score on bugs, vulnerabilities, coverage). If the gate fails, the pipeline is aborted.
+**Description:** Performs static analysis using coding standard rules.
 
-6. Deploy to Nexus
-Tool: Nexus Artifact Uploader Plugin
+### 4. SonarQube Analysis
 
-Description: Upon successfully passing all previous stages and the quality gate, the final vprofile-v2.war artifact is versioned with the build ID and timestamp and uploaded to the vprofile-release repository on the Nexus server.
+**Tool:** SonarScanner
 
-Notifications
-The pipeline is configured to send post-build notifications to the #jenkins Slack channel.
+**Description:** SonarScanner analyzes the codebase, JaCoCo coverage, and Checkstyle reports, then publishes results to the SonarQube server.
 
-Success: A green notification with the build number and a link to the Jenkins build page.
+### 5. Quality Gate
 
-Failure: A red notification alerting the team to the failed build.
+**Description:** Pipeline waits for SonarQube's webhook callback. If the project meets quality gate conditions, pipeline continues; otherwise, it fails.
 
-Environment Configuration
-Security and configuration are managed using Jenkins Credentials and Environment variables, ensuring sensitive data is not hardcoded in the Jenkinsfile.
+### 6. Deploy to Nexus
 
-NEXUS_LOGIN: Jenkins credential ID for authenticating with the Nexus repository for uploads.
+**Tool:** Nexus Artifact Uploader Plugin
 
-SONARSERVER / SONARSCANNER: Jenkins tool and environment configurations for connecting to the SonarQube instance.
+**Description:** The final `vprofile-v2.war` is versioned with build ID + timestamp and uploaded to the Nexus release repository.
 
-Server IPs & Ports: Managed as environment variables (NEXUSIP, NEXUSPORT) for flexibility across environments. 
+**Successfully Uploaded Artifacts in Nexus:**
+(Include relevant screenshots here.)
+
+## Slack Notifications
+
+The pipeline sends real-time notifications to the **#jenkins** Slack channel.
+
+**Success Notification:**
+
+![Slack Success](Images/Slack-notification.png)
+
+**Failure Notification:**
+
+Notifications include:
+
+* Build number
+* Build status
+* Link to the Jenkins console
+
+## Environment Configuration
+
+Security-sensitive values are securely managed using Jenkins Credentials.
+
+* **NEXUS_LOGIN:** Credentials ID for Nexus authentication.
+* **SONARSERVER / SONARSCANNER:** Configured Jenkins tools for Sonar.
+* **NEXUSIP / NEXUSPORT:** Stored as environment variables for flexible deployments.
+
+---
+
+
